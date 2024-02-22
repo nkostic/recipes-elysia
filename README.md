@@ -1,4 +1,7 @@
-# Elysia with Bun runtime
+## Recipes-Elysia 
+Small backend app for [Recipes-Next Project](https://github.com/nkostic/recipes-next)
+
+## Elysia with Bun runtime
 
 ## Getting Started
 To get started with this template, simply paste this command into your terminal:

@@ -39,7 +39,13 @@ export class RecipeDatabase {
   }
 
   async createRecipe(recipe: Recipe) {
-    const result = await this.db
+    const existingRecipe: any = await this.db
+      .query("SELECT * FROM recipes WHERE name = ?")
+      .get(recipe.name);
+    if (existingRecipe) {
+      throw new Error("Recipe already exists");
+    }
+    await this.db
       .query(
         `
         INSERT INTO recipes (

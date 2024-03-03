@@ -4,7 +4,13 @@ import { swagger } from "@elysiajs/swagger";
 import { Recipe, RecipeDatabase } from "./db";
 
 const app = new Elysia()
-  .use(cors())
+  .use(
+    cors({
+      credentials: true,
+      origin: /localhost.*/,
+      allowedHeaders: ["Content-Type", "Authorization"],
+    })
+  )
   .use(
     swagger({
       documentation: {
@@ -73,10 +79,10 @@ const app = new Elysia()
         }
       )
       .delete(
-        "/remove:id",
+        "/remove/:id",
         async ({ db, params }) => {
           try {
-            console.log(params);
+            console.log("delete endpoint", params);
             await db.deleteRecipe(parseInt(params.id));
           } catch (e) {
             console.log(e);

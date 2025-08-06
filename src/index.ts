@@ -1,138 +1,96 @@
-import { Elysia, t } from "elysia";
-import { cors } from "@elysiajs/cors";
-import { swagger } from "@elysiajs/swagger";
-import { Recipe, RecipeDatabase } from "./db";
+import { Elysia } from 'elysia';
+import { cors } from '@elysiajs/cors';
+import { swagger } from '@elysiajs/swagger';
+import { RecipeDatabase } from './models/database';
+import { createRoutes } from './routes';
+import { createAuthRoutes } from './routes/auth.routes';
+import { errorHandler, corsConfig } from './middleware';
+import { config } from './utils/config';
 
+// Initialize database
+const db = new RecipeDatabase();
+
+// Wait for database initialization before starting server
+await db.waitForInit();
+
+// Create main application
 const app = new Elysia()
-  .use(
-    cors({
-      credentials: true,
-      origin: /localhost.*/,
-      allowedHeaders: ["Content-Type", "Authorization"],
-    })
-  )
+  .use(cors(corsConfig))
   .use(
     swagger({
       documentation: {
         info: {
-          title: "Recipes Documentation",
-          version: "1.0.0",
+          title: 'Recipe API Documentation',
+          version: '1.0.0',
+          description: 'Backend API for recipe management system built with Elysia and Bun',
         },
         tags: [
-          { name: "App", description: "Recipes endpoints" },
-          { name: "Auth", description: "Authentication endpoints" },
+          { name: 'Authentication', description: 'User authentication and profile management' },
+          { name: 'Recipes', description: 'Recipe management endpoints' },
+          { name: 'Cuisines', description: 'Cuisine management endpoints' },
+          { name: 'Files', description: 'File upload and serving endpoints' },
+        ],
+        servers: [
+          {
+            url:
+              config.environment === 'production'
+                ? 'https://your-api-domain.com'
+                : `http://localhost:${config.port}`,
+            description:
+              config.environment === 'production' ? 'Production server' : 'Development server',
+          },
         ],
       },
+      path: '/docs',
     })
   )
-  .decorate("db", new RecipeDatabase())
-  .group("/recipe", (app) =>
-    app
-      .get("/list", ({ db }) => db.getRecipes(), {
-        detail: {
-          tags: ["App"],
-        },
-      })
-      .get(
-        "/:id",
-        ({ db, params }) => {
-          console.log(params);
-          return db.getRecipe(params.id);
-        },
-        {
-          params: t.Object({
-            id: t.Numeric(),
-          }),
-          detail: {
-            tags: ["App"],
-          },
-        }
-      )
-      .post(
-        "/create",
-        async ({ db, body }) => {
-          console.log(body);
-          const id = await db.createRecipe(body as Recipe);
-          console.log("create result:", id);
-        },
-        {
-          detail: {
-            tags: ["App"],
-          },
-        }
-      )
-      .put(
-        "/update",
-        async ({ db, params, body }) => {
-          try {
-            console.log(params);
-            console.log(body);
-            await db.updateRecipe(body as Recipe);
-          } catch (e) {
-            console.log(e);
-          }
-        },
-        {
-          detail: {
-            tags: ["App"],
-          },
-        }
-      )
-      .delete(
-        "/remove/:id",
-        async ({ db, params }) => {
-          try {
-            console.log("delete endpoint", params);
-            await db.deleteRecipe(parseInt(params.id));
-          } catch (e) {
-            console.log(e);
-          }
-        },
-        {
-          detail: {
-            tags: ["App"],
-          },
-        }
-      )
+  .onError(errorHandler)
+  .use(createAuthRoutes(db))
+  .use(createRoutes(db))
+  .get(
+    '/',
+    () => ({
+      message: 'Recipe API is running',
+      version: '1.0.0',
+      documentation: '/docs',
+      endpoints: {
+        auth: '/auth',
+        recipes: '/api/v1/recipes',
+        cuisines: '/api/v1/cuisines',
+        files: '/api/v1/files',
+      },
+    }),
+    {
+      detail: {
+        tags: ['General'],
+        summary: 'API health check and information',
+      },
+    }
   )
-  .listen(3000);
+  .get(
+    '/health',
+    () => ({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      environment: config.environment,
+    }),
+    {
+      detail: {
+        tags: ['General'],
+        summary: 'Health check endpoint',
+      },
+    }
+  );
 
-app
-  .group("/auth", (app) =>
-    app
-      .get("/profile", () => "Hello Recipes", {
-        detail: {
-          tags: ["Auth"],
-        },
-      })
-      .post("/sign-up", async ({ body }) => body, {
-        detail: {
-          tags: ["Auth"],
-        },
-      })
-      .post("/log-in", async ({ body }) => body, {
-        detail: {
-          tags: ["Auth"],
-        },
-      })
-      .post("/log-out", async ({ body }) => body, {
-        detail: {
-          tags: ["Auth"],
-        },
-      })
-      .post("/change-password", async ({ body }) => body, {
-        detail: {
-          tags: ["Auth"],
-        },
-      })
-      .put("/update", async ({ body }) => body, {
-        detail: {
-          tags: ["Auth"],
-        },
-      })
-  )
-  .listen(3000);
+// Start server with explicit Bun.serve configuration
+const server = Bun.serve({
+  hostname: '0.0.0.0',
+  port: config.port,
+  fetch: app.fetch,
+});
 
-console.log(
-  `🦊 Elysia is running recipes api at ${app.server?.hostname}:${app.server?.port}`
-);
+console.log(`🦊 Recipe API is running at ${server.hostname}:${server.port}`);
+console.log(`📚 API Documentation available at http://${server.hostname}:${server.port}/docs`);
+console.log(`🌱 Environment: ${config.environment}`);
+
+export default app;
